@@ -1,5 +1,11 @@
-import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
-import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase } from "brightbase"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  BrightBaseCRUD,
+  BrightBaseCRUDTableRecord,
+  BrightBaseRealtime,
+  initBrightBase,
+  useBrightSuspenseQuery,
+} from "brightbase"
 import { Loader2, Trash } from "lucide-react"
 import { Suspense, useCallback, useEffect, useRef, useState } from "react"
 import wetToast from "./utils/wetToast"
@@ -49,21 +55,21 @@ function Auth() {
 
 const todos_table = new BrightBaseCRUD<Todo, CreateExclude>("todos")
 
-const readSettings: Parameters<typeof todos_table.read> = [
-  {},
-  {
-    order: { by: "created_at", ascending: false },
-  },
-]
+const TodosTable = {
+  useBrightSuspenseQuery: () =>
+    useBrightSuspenseQuery<Todo>(todos_table, [
+      {},
+      {
+        order: { by: "created_at", ascending: false },
+      },
+    ]),
+}
+
 function CRUD() {
+  // ? Streamline Invalidations with TanStack ? //
   const queryClient = useQueryClient()
 
-  const { data: todoList } = useSuspenseQuery({
-    queryKey: ["todos"],
-    queryFn() {
-      return todos_table.read(...readSettings)
-    },
-  })
+  const { data: todoList } = TodosTable.useBrightSuspenseQuery()
 
   // ? React Hook Form ? //
   const [text, setText] = useState("")
@@ -74,7 +80,7 @@ function CRUD() {
         .create({ todo: text })
         .then(() => wetToast("Todo added!", { icon: "🎉" }))
         .then(() => setText(""))
-        // ? Then Optimistic and Invalidate with TanStack ? //
+        // ? .then Optimistic and .then Invalidate with TanStack (would tanstack revert if after invalidating the optisim was wrong?) ? //
         .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
         .catch(err => wetToast(err.message, { icon: "❌" })),
     [queryClient, text]
@@ -154,7 +160,7 @@ function CRUD() {
   )
 }
 
-interface Todo {
+interface Todo extends BrightBaseCRUDTableRecord {
   id: string
   created_at: string
   todo: string
@@ -168,19 +174,19 @@ type CreateExclude = "id" | "created_at" | "done"
 // I use one channel to emit and another to listen
 // This is because I want to receive my own broadcasts
 // Sometimes you may not want to receive your own broadcasts
-const channel1 = new BrightBaseRealtime<GoatedEvents>("goated")
-const channel2 = new BrightBaseRealtime<GoatedEvents>("goated")
+const channel1 = new BrightBaseRealtime<DemoEvents>("room1")
+const channel2 = new BrightBaseRealtime<DemoEvents>("room1")
 
 const Listener = {
   useSubscribe() {
     useEffect(() => channel1.subscribe(), [])
   },
-  useMessage(cb: GoatedCallback<"message">) {
+  useMessage(cb: DemoEventCallback<"message">) {
     const cbRef = useRef(cb)
     cbRef.current = cb
     useEffect(() => channel1.on("message", cbRef.current), [])
   },
-  useToggle(cb: GoatedCallback<"toggle">) {
+  useToggle(cb: DemoEventCallback<"toggle">) {
     const cbRef = useRef(cb)
     cbRef.current = cb
     useEffect(() => channel1.on("toggle", cbRef.current), [])
@@ -188,10 +194,10 @@ const Listener = {
 }
 
 const Emitter = {
-  message: function emitMessage(payload: GoatedEvents["message"]) {
+  message: function emitMessage(payload: DemoEvents["message"]) {
     channel2.emit("message", payload)
   },
-  toggle: function emitToggle(payload: GoatedEvents["toggle"]) {
+  toggle: function emitToggle(payload: DemoEvents["toggle"]) {
     channel2.emit("toggle", payload)
   },
 }
@@ -199,7 +205,7 @@ const Emitter = {
 function Realtime() {
   const [name, setName] = useState("")
   const [toggle, setToggle] = useState(false)
-  const [messages, setMessages] = useState<GoatedEvents["message"][]>([])
+  const [messages, setMessages] = useState<DemoEvents["message"][]>([])
   const [text, setText] = useState("")
 
   const handleSend = useCallback(async () => {
@@ -266,13 +272,13 @@ function Realtime() {
   )
 }
 
-interface GoatedEvents {
+interface DemoEvents {
   message: { message: string; name: string }
   toggle: { isOn: boolean }
 }
 
-type GoatedCallback<T extends keyof GoatedEvents> = (
-  payload: GoatedEvents[T]
+type DemoEventCallback<T extends keyof DemoEvents> = (
+  payload: DemoEvents[T]
 ) => void
 
 // * STORAGE
