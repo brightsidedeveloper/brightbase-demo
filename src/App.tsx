@@ -32,7 +32,11 @@ export default function App() {
   useEffect(
     () =>
       listener.on('message', (payload) => {
-        if (payload.name !== name) toast(`${payload.name}: ${payload.message}`, { icon: '🔔' })
+        if (payload.name !== name)
+          toast(`${payload.name}: ${payload.message}`, {
+            icon: '🔔',
+            style: { background: 'var(--background)', color: 'var(--text)', border: '1px solid black' },
+          })
         setMessages((prev) => [...prev, payload])
       }),
     [name]
