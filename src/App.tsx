@@ -1,8 +1,8 @@
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { BrightBaseAuth, BrightBaseCRUD, BrightBaseRealtime, initBrightBase } from 'brightbase'
-import { Loader2 } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useState } from 'react'
-import toast from 'react-hot-toast'
+import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query"
+import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase } from "brightbase"
+import { Loader2, Trash } from "lucide-react"
+import { Suspense, useCallback, useEffect, useRef, useState } from "react"
+import wetToast from "./utils/wetToast"
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -10,7 +10,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 initBrightBase(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 export default function App() {
-  const [page, setPage] = useState('')
+  const [page, setPage] = useState("")
 
   return (
     <Suspense
@@ -20,12 +20,18 @@ export default function App() {
         </div>
       }
     >
-      {page === 'realtime' ? <Realtime /> : page === 'crud' ? <CRUD /> : <Auth />}
+      {page === "realtime" ? (
+        <Realtime />
+      ) : page === "crud" ? (
+        <CRUD />
+      ) : (
+        <Auth />
+      )}
       <div className="fixed z-10 top-4 right-4 flex flex-col gap-4 items-end">
-        <button onClick={() => setPage('auth')}>Auth</button>
-        <button onClick={() => setPage('crud')}>CRUD</button>
-        <button onClick={() => setPage('realtime')}>Realtime</button>
-        <button onClick={() => setPage('storage')}>Storage</button>
+        <button onClick={() => setPage("auth")}>Auth</button>
+        <button onClick={() => setPage("crud")}>CRUD</button>
+        <button onClick={() => setPage("realtime")}>Realtime</button>
+        <button onClick={() => setPage("storage")}>Storage</button>
       </div>
     </Suspense>
   )
@@ -33,141 +39,192 @@ export default function App() {
 
 // * AUTH
 // TODO: Get SETUP
-const auth = new BrightBaseAuth()
+// const auth = new BrightBaseAuth()
 
 function Auth() {
   return <div />
 }
 
 // * CRUD
-// TODO: Get Generic in class
 
-const todos_table = new BrightBaseCRUD('todos')
+const todos_table = new BrightBaseCRUD<Todo, CreateExclude>("todos")
 
+const readSettings: Parameters<typeof todos_table.read> = [
+  {},
+  {
+    order: { by: "created_at", ascending: false },
+  },
+]
 function CRUD() {
   const queryClient = useQueryClient()
 
   const { data: todoList } = useSuspenseQuery({
-    queryKey: ['todos'],
-    queryFn: () =>
-      todos_table.read(
-        {},
-        {
-          order: { by: 'created_at', ascending: false },
-          limit: 3,
-          offset: 1,
-        }
-      ),
+    queryKey: ["todos"],
+    queryFn() {
+      return todos_table.read(...readSettings)
+    },
   })
 
-  const [text, setText] = useState('')
+  // ? React Hook Form ? //
+  const [text, setText] = useState("")
 
   const createTodo = useCallback(
     async () =>
       todos_table
         .create({ todo: text })
-        .then(() => toast('Todo added!'))
-        .then(() => setText(''))
-        .then(() => queryClient.invalidateQueries({ queryKey: ['todos'] }))
-        .catch((err) => toast.error(err.message)),
+        .then(() => wetToast("Todo added!", { icon: "🎉" }))
+        .then(() => setText(""))
+        // ? Then Optimistic and Invalidate with TanStack ? //
+        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
+        .catch(err => wetToast(err.message, { icon: "❌" })),
     [queryClient, text]
   )
 
   const updateTodo = useCallback(
-    async (id: string, done: boolean) =>
+    async ({ id, done, todo }: Todo) =>
       todos_table
         .update(id, { done })
-        .then(() => toast('Todo updated!'))
-        .then(() => queryClient.invalidateQueries({ queryKey: ['todos'] }))
-        .catch((err) => toast.error(err.message)),
+        .then(() =>
+          wetToast(`${todo} ${done ? "checked" : "unchecked"}!`, { icon: "🎉" })
+        )
+        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
+        .catch(err => wetToast(err.message, { icon: "❌" })),
     [queryClient]
   )
 
   const deleteTodo = useCallback(
-    async (id: string) =>
+    async ({ id }: Todo) =>
       todos_table
         .delete(id)
-        .then(() => toast('Todo deleted!'))
-        .then(() => queryClient.invalidateQueries({ queryKey: ['todos'] }))
-        .catch((err) => toast.error(err.message)),
+        .then(() => wetToast("Todo deleted!", { icon: "🎉" }))
+        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
+        .catch(err => wetToast(err.message, { icon: "❌" })),
     [queryClient]
   )
 
   return (
-    <div className="h-screen flex items-center justify-center flex-col gap-4">
-      <h1 className="text-6xl font-bold">Todo List</h1>
-      <button onClick={() => queryClient.invalidateQueries({ queryKey: ['todos'] })}>asjhdkajshdkjsadhkj</button>
-      <form
-        className="flex mt-4"
-        onSubmit={(e) => {
-          e.preventDefault()
-          createTodo()
-        }}
-      >
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="flex-1 p-2 border border-gray-300 bg-zinc-900 rounded mr-2"
-          placeholder={'Todo...'}
-        />
-        <button className="bg-blue-500 text-white p-2 rounded shadow-sm hover:shadow-lg hover:bg-blue-600 transition-all duration-300">
-          Create
-        </button>
-      </form>
-      <div />
-      <div className=" flex flex-col gap-2 w-1/3">
-        {todoList?.map(({ id, todo, done }: any) => (
-          <div key={id} className="flex items-center justify-between w-full p-2 border border-gray-300 rounded">
-            <div className="flex items-center">
-              <input type="checkbox" checked={done} onChange={(e) => updateTodo(id, e.target.checked)} className="mr-2" />
-              <span className={done ? 'line-through' : ''}>{todo}</span>
-            </div>
-            <button onClick={() => deleteTodo(id)}>Delete</button>
-          </div>
-        ))}
+    <div className="h-screen flex items-center justify-center ">
+      <div className="flex items-center justify-center flex-col gap-4 w-full max-w-[20rem]">
+        <h1 className="text-6xl font-bold">Todo List</h1>
+        <form
+          className="flex gap-2 w-full"
+          onSubmit={e => {
+            e.preventDefault()
+            createTodo()
+          }}
+        >
+          <input
+            type="text"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            className="p-2 border border-gray-300 bg-zinc-900 rounded w-full"
+            placeholder={"Todo..."}
+          />
+          <button className="bg-blue-500 text-white p-2 rounded shadow-sm hover:shadow-lg hover:bg-blue-600 transition-all duration-300">
+            Create
+          </button>
+        </form>
+        <div />
+        <div className=" flex flex-col gap-2 w-full">
+          {todoList?.map(t => {
+            const { id, todo, done } = t
+            return (
+              <div
+                key={id}
+                className="flex items-center justify-between w-full p-2 border border-gray-300 rounded"
+              >
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={done}
+                    onChange={e => updateTodo({ ...t, done: e.target.checked })}
+                    className="mr-2"
+                  />
+                  <span className={done ? "line-through" : ""}>{todo}</span>
+                </div>
+                <button onClick={() => deleteTodo(t)}>
+                  <Trash className="size-5 text-red-500 hover:text-red-700 transition-colors duration-300" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )
 }
 
-// * REALTIME
-
-interface GoatedEvents {
-  message: { message: string; name: string }
-  toggle: { isOn: boolean }
+interface Todo {
+  id: string
+  created_at: string
+  todo: string
+  done: boolean
 }
 
-const listener = new BrightBaseRealtime<GoatedEvents>('goated')
-const emitter = new BrightBaseRealtime<GoatedEvents>('goated')
+type CreateExclude = "id" | "created_at" | "done"
+
+// * REALTIME
+
+// I use one channel to emit and another to listen
+// This is because I want to receive my own broadcasts
+// Sometimes you may not want to receive your own broadcasts
+const channel1 = new BrightBaseRealtime<GoatedEvents>("goated")
+const channel2 = new BrightBaseRealtime<GoatedEvents>("goated")
+
+const Listener = {
+  useSubscribe() {
+    useEffect(() => channel1.subscribe(), [])
+  },
+  useMessage(cb: GoatedCallback<"message">) {
+    const cbRef = useRef(cb)
+    cbRef.current = cb
+    useEffect(() => channel1.on("message", cbRef.current), [])
+  },
+  useToggle(cb: GoatedCallback<"toggle">) {
+    const cbRef = useRef(cb)
+    cbRef.current = cb
+    useEffect(() => channel1.on("toggle", cbRef.current), [])
+  },
+}
+
+const Emitter = {
+  message: function emitMessage(payload: GoatedEvents["message"]) {
+    channel2.emit("message", payload)
+  },
+  toggle: function emitToggle(payload: GoatedEvents["toggle"]) {
+    channel2.emit("toggle", payload)
+  },
+}
 
 function Realtime() {
-  const [name, setName] = useState('')
+  const [name, setName] = useState("")
   const [toggle, setToggle] = useState(false)
-  const [messages, setMessages] = useState<GoatedEvents['message'][]>([])
-  const [text, setText] = useState('')
+  const [messages, setMessages] = useState<GoatedEvents["message"][]>([])
+  const [text, setText] = useState("")
 
   const handleSend = useCallback(async () => {
     if (!text.trim()) return
     if (!name) setName(text)
-    else emitter.emit('message', { message: text, name })
-    setText('') // Clear the input after sending
+    else Emitter.message({ message: text, name })
+    setText("") // Clear the input after sending
   }, [name, text])
 
-  useEffect(() => listener.subscribe(), [])
-  useEffect(
-    () =>
-      listener.on('message', (payload) => {
-        if (payload.name !== name)
-          toast(`${payload.name}: ${payload.message}`, {
-            icon: '🔔',
-            style: { background: 'var(--background)', color: 'var(--text)', border: '1px solid black' },
-          })
-        setMessages((prev) => [...prev, payload])
-      }),
-    [name]
+  const handleToggle = useCallback(
+    () => Emitter.toggle({ isOn: !toggle }),
+    [toggle]
   )
-  useEffect(() => listener.on('toggle', (payload: { isOn: boolean }) => setToggle(payload.isOn)), [])
+
+  Listener.useSubscribe()
+
+  Listener.useToggle(({ isOn }) => setToggle(isOn))
+
+  Listener.useMessage(msg => {
+    setMessages(prev => [...prev, msg])
+    if (msg.name === name) return
+    wetToast(`${msg.name}: ${msg.message}`, {
+      icon: "🔔",
+    })
+  })
 
   return (
     <div className="flex h-screen p-4">
@@ -184,7 +241,7 @@ function Realtime() {
         </div>
         <form
           className="flex mt-4"
-          onSubmit={(e) => {
+          onSubmit={e => {
             e.preventDefault()
             handleSend()
           }}
@@ -192,21 +249,30 @@ function Realtime() {
           <input
             type="text"
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={e => setText(e.target.value)}
             className="flex-1 p-2 border border-gray-300 bg-zinc-900 rounded mr-2"
-            placeholder={name ? 'Type a message...' : 'Set your name...'}
+            placeholder={name ? "Type a message..." : "Set your name..."}
           />
           <button className="bg-blue-500 text-white p-2 rounded shadow-sm hover:shadow-lg hover:bg-blue-600 transition-all duration-300">
-            {name ? 'Send' : 'Set Name'}
+            {name ? "Send" : "Set Name"}
           </button>
         </form>
       </div>
 
       <div className="flex flex-col items-center justify-center w-1/2">
-        <button onClick={() => emitter.emit('toggle', { isOn: !toggle })}>{toggle ? 'On' : 'Off'}</button>
+        <button onClick={handleToggle}>{toggle ? "On" : "Off"}</button>
       </div>
     </div>
   )
 }
+
+interface GoatedEvents {
+  message: { message: string; name: string }
+  toggle: { isOn: boolean }
+}
+
+type GoatedCallback<T extends keyof GoatedEvents> = (
+  payload: GoatedEvents[T]
+) => void
 
 // * STORAGE
