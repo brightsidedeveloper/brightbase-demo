@@ -2,7 +2,14 @@ import { Loader2, Trash } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import useCreateQuery from './hooks/useCreateQuery'
 import useInvalidateQuery from './hooks/useInvalidateQuery'
-import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase, useSuspenseQuery, wetToast } from 'brightside-developer'
+import {
+  BrightBaseCRUD,
+  BrightBaseCRUDTableRecord,
+  BrightBaseRealtime,
+  initBrightBase,
+  useSuspenseQuery,
+  wetToast,
+} from 'brightside-developer'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -40,7 +47,7 @@ function Auth() {
 }
 
 // * CRUD
-interface Todo {
+interface Todo extends BrightBaseCRUDTableRecord {
   id: string
   created_at: string
   todo: string
@@ -52,17 +59,23 @@ interface CreateOptions {
   OptionalOnCreate: 'done'
 }
 
-const todos_table = new BrightBaseCRUD<Todo, CreateOptions>('todos')
+const Tables = {
+  users: new BrightBaseCRUD<{ id: string; email: string }>('users'),
+  todos: new BrightBaseCRUD<Todo, CreateOptions>('todos'),
+  friends: new BrightBaseCRUD<{ id: string; user_id: string; friend_id: string }>('friends'),
+  posts: new BrightBaseCRUD<{ id: string; user_id: string; content: string }>('posts'),
+  likes: new BrightBaseCRUD<{ id: string; user_id: string; post_id: string }>('likes'),
+}
 
-const ReadOptions: Parameters<typeof todos_table.read> = [
-  {},
+const ReadOptions: Parameters<typeof Tables.todos.read> = [
+  { id: '123' },
   {
     order: { by: 'created_at', ascending: false },
   },
 ]
 
 function CRUD() {
-  const query = useCreateQuery(todos_table, ReadOptions)
+  const query = useCreateQuery(Tables.todos, ReadOptions)
 
   const invalidate = useInvalidateQuery(query)
 
@@ -73,7 +86,7 @@ function CRUD() {
 
   const createTodo = useCallback(
     async () =>
-      todos_table
+      Tables.todos
         .create({ todo: text })
         .then(() => {
           invalidate()
@@ -86,7 +99,7 @@ function CRUD() {
 
   const updateTodo = useCallback(
     async ({ id, done, todo: label }: Todo) =>
-      todos_table
+      Tables.todos
         .update(id, { done })
         .then(() => {
           invalidate()
@@ -98,7 +111,7 @@ function CRUD() {
 
   const deleteTodo = useCallback(
     async ({ id }: Todo) =>
-      todos_table
+      Tables.todos
         .delete(id)
         .then(() => {
           invalidate()
