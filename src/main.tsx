@@ -3,15 +3,13 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import { Toaster } from 'react-hot-toast'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-
-const queryClient = new QueryClient()
+import { BrightQueryProvider } from 'brightbase'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <BrightQueryProvider>
       <App />
-    </QueryClientProvider>
+    </BrightQueryProvider>
     <Toaster />
   </StrictMode>
 )

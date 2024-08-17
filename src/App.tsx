@@ -1,14 +1,9 @@
-import { useQueryClient } from "@tanstack/react-query"
-import {
-  BrightBaseCRUD,
-  BrightBaseCRUDTableRecord,
-  BrightBaseRealtime,
-  initBrightBase,
-  useBrightSuspenseQuery,
-} from "brightbase"
-import { Loader2, Trash } from "lucide-react"
-import { Suspense, useCallback, useEffect, useRef, useState } from "react"
-import wetToast from "./utils/wetToast"
+import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase } from 'brightbase'
+import { Loader2, Trash } from 'lucide-react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import wetToast from './utils/wetToast'
+import useBrightSuspenseQuery from './hooks/useBrightSuspenseQuery'
+import useInvalidateBrightQuery from './hooks/useInvalidateBrightQuery'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -16,7 +11,7 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 initBrightBase(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 export default function App() {
-  const [page, setPage] = useState("")
+  const [page, setPage] = useState('')
 
   return (
     <Suspense
@@ -26,18 +21,12 @@ export default function App() {
         </div>
       }
     >
-      {page === "realtime" ? (
-        <Realtime />
-      ) : page === "crud" ? (
-        <CRUD />
-      ) : (
-        <Auth />
-      )}
+      {page === 'realtime' ? <Realtime /> : page === 'crud' ? <CRUD /> : <Auth />}
       <div className="fixed z-10 top-4 right-4 flex flex-col gap-4 items-end">
-        <button onClick={() => setPage("auth")}>Auth</button>
-        <button onClick={() => setPage("crud")}>CRUD</button>
-        <button onClick={() => setPage("realtime")}>Realtime</button>
-        <button onClick={() => setPage("storage")}>Storage</button>
+        <button onClick={() => setPage('auth')}>Auth</button>
+        <button onClick={() => setPage('crud')}>CRUD</button>
+        <button onClick={() => setPage('realtime')}>Realtime</button>
+        <button onClick={() => setPage('storage')}>Storage</button>
       </div>
     </Suspense>
   )
@@ -52,60 +41,65 @@ function Auth() {
 }
 
 // * CRUD
-
-const todos_table = new BrightBaseCRUD<Todo, CreateExclude>("todos")
-
-const TodosTable = {
-  useBrightSuspenseQuery: () =>
-    useBrightSuspenseQuery<Todo>(todos_table, [
-      {},
-      {
-        order: { by: "created_at", ascending: false },
-      },
-    ]),
+interface Todo {
+  id: string
+  created_at: string
+  todo: string
+  done: boolean
 }
 
-function CRUD() {
-  // ? Streamline Invalidations with TanStack ? //
-  const queryClient = useQueryClient()
+interface CreateOptions {
+  notAllowedOnCreate: 'id' | 'created_at'
+  optionalOnCreate: 'done'
+}
 
-  const { data: todoList } = TodosTable.useBrightSuspenseQuery()
+const todos_table = new BrightBaseCRUD<Todo, CreateOptions>('todos')
+
+const ReadOptions: Parameters<typeof todos_table.read> = [
+  {},
+  {
+    order: { by: 'created_at', ascending: false },
+  },
+]
+
+function CRUD() {
+  const invalidate = useInvalidateBrightQuery(todos_table, ReadOptions)
+
+  const { data: todoList } = useBrightSuspenseQuery(todos_table, ReadOptions)
 
   // ? React Hook Form ? //
-  const [text, setText] = useState("")
+  const [text, setText] = useState('')
 
   const createTodo = useCallback(
     async () =>
       todos_table
         .create({ todo: text })
-        .then(() => wetToast("Todo added!", { icon: "🎉" }))
-        .then(() => setText(""))
+        .then(() => wetToast('Todo added!', { icon: '🎉' }))
+        .then(() => setText(''))
         // ? .then Optimistic and .then Invalidate with TanStack (would tanstack revert if after invalidating the optisim was wrong?) ? //
-        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
-        .catch(err => wetToast(err.message, { icon: "❌" })),
-    [queryClient, text]
+        .then(() => invalidate())
+        .catch((err) => wetToast(err.message, { icon: '❌' })),
+    [invalidate, text]
   )
 
   const updateTodo = useCallback(
     async ({ id, done, todo }: Todo) =>
       todos_table
         .update(id, { done })
-        .then(() =>
-          wetToast(`${todo} ${done ? "checked" : "unchecked"}!`, { icon: "🎉" })
-        )
-        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
-        .catch(err => wetToast(err.message, { icon: "❌" })),
-    [queryClient]
+        .then(() => wetToast(`${todo} ${done ? 'checked' : 'unchecked'}!`, { icon: '🎉' }))
+        .then(() => invalidate())
+        .catch((err) => wetToast(err.message, { icon: '❌' })),
+    [invalidate]
   )
 
   const deleteTodo = useCallback(
     async ({ id }: Todo) =>
       todos_table
         .delete(id)
-        .then(() => wetToast("Todo deleted!", { icon: "🎉" }))
-        .then(() => queryClient.invalidateQueries({ queryKey: ["todos"] }))
-        .catch(err => wetToast(err.message, { icon: "❌" })),
-    [queryClient]
+        .then(() => wetToast('Todo deleted!', { icon: '🎉' }))
+        .then(() => invalidate())
+        .catch((err) => wetToast(err.message, { icon: '❌' })),
+    [invalidate]
   )
 
   return (
@@ -114,7 +108,7 @@ function CRUD() {
         <h1 className="text-6xl font-bold">Todo List</h1>
         <form
           className="flex gap-2 w-full"
-          onSubmit={e => {
+          onSubmit={(e) => {
             e.preventDefault()
             createTodo()
           }}
@@ -122,9 +116,9 @@ function CRUD() {
           <input
             type="text"
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={(e) => setText(e.target.value)}
             className="p-2 border border-gray-300 bg-zinc-900 rounded w-full"
-            placeholder={"Todo..."}
+            placeholder={'Todo...'}
           />
           <button className="bg-blue-500 text-white p-2 rounded shadow-sm hover:shadow-lg hover:bg-blue-600 transition-all duration-300">
             Create
@@ -132,21 +126,13 @@ function CRUD() {
         </form>
         <div />
         <div className=" flex flex-col gap-2 w-full">
-          {todoList?.map(t => {
+          {todoList?.map((t) => {
             const { id, todo, done } = t
             return (
-              <div
-                key={id}
-                className="flex items-center justify-between w-full p-2 border border-gray-300 rounded"
-              >
+              <div key={id} className="flex items-center justify-between w-full p-2 border border-gray-300 rounded">
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={done}
-                    onChange={e => updateTodo({ ...t, done: e.target.checked })}
-                    className="mr-2"
-                  />
-                  <span className={done ? "line-through" : ""}>{todo}</span>
+                  <input type="checkbox" checked={done} onChange={(e) => updateTodo({ ...t, done: e.target.checked })} className="mr-2" />
+                  <span className={done ? 'line-through' : ''}>{todo}</span>
                 </div>
                 <button onClick={() => deleteTodo(t)}>
                   <Trash className="size-5 text-red-500 hover:text-red-700 transition-colors duration-300" />
@@ -160,75 +146,68 @@ function CRUD() {
   )
 }
 
-interface Todo extends BrightBaseCRUDTableRecord {
-  id: string
-  created_at: string
-  todo: string
-  done: boolean
+// * REALTIME
+interface DemoEvents {
+  message: { message: string; name: string }
+  toggle: { isOn: boolean }
 }
 
-type CreateExclude = "id" | "created_at" | "done"
-
-// * REALTIME
-
+type DemoEventCallback<T extends keyof DemoEvents> = (payload: DemoEvents[T]) => void
 // I use one channel to emit and another to listen
 // This is because I want to receive my own broadcasts
 // Sometimes you may not want to receive your own broadcasts
-const channel1 = new BrightBaseRealtime<DemoEvents>("room1")
-const channel2 = new BrightBaseRealtime<DemoEvents>("room1")
+const channel1 = new BrightBaseRealtime<DemoEvents>('room1')
+const channel2 = new BrightBaseRealtime<DemoEvents>('room1')
 
 const Listener = {
   useSubscribe() {
     useEffect(() => channel1.subscribe(), [])
   },
-  useMessage(cb: DemoEventCallback<"message">) {
+  useMessage(cb: DemoEventCallback<'message'>) {
     const cbRef = useRef(cb)
     cbRef.current = cb
-    useEffect(() => channel1.on("message", cbRef.current), [])
+    useEffect(() => channel1.on('message', cbRef.current), [])
   },
-  useToggle(cb: DemoEventCallback<"toggle">) {
+  useToggle(cb: DemoEventCallback<'toggle'>) {
     const cbRef = useRef(cb)
     cbRef.current = cb
-    useEffect(() => channel1.on("toggle", cbRef.current), [])
+    useEffect(() => channel1.on('toggle', cbRef.current), [])
   },
 }
 
 const Emitter = {
-  message: function emitMessage(payload: DemoEvents["message"]) {
-    channel2.emit("message", payload)
+  message: function emitMessage(payload: DemoEvents['message']) {
+    channel2.emit('message', payload)
   },
-  toggle: function emitToggle(payload: DemoEvents["toggle"]) {
-    channel2.emit("toggle", payload)
+  toggle: function emitToggle(payload: DemoEvents['toggle']) {
+    channel2.emit('toggle', payload)
   },
 }
 
 function Realtime() {
-  const [name, setName] = useState("")
+  const [name, setName] = useState('')
   const [toggle, setToggle] = useState(false)
-  const [messages, setMessages] = useState<DemoEvents["message"][]>([])
-  const [text, setText] = useState("")
+  const [messages, setMessages] = useState<DemoEvents['message'][]>([])
+  const [text, setText] = useState('')
 
   const handleSend = useCallback(async () => {
     if (!text.trim()) return
     if (!name) setName(text)
     else Emitter.message({ message: text, name })
-    setText("") // Clear the input after sending
+    setText('') // Clear the input after sending
   }, [name, text])
 
-  const handleToggle = useCallback(
-    () => Emitter.toggle({ isOn: !toggle }),
-    [toggle]
-  )
+  const handleToggle = useCallback(() => Emitter.toggle({ isOn: !toggle }), [toggle])
 
   Listener.useSubscribe()
 
   Listener.useToggle(({ isOn }) => setToggle(isOn))
 
-  Listener.useMessage(msg => {
-    setMessages(prev => [...prev, msg])
+  Listener.useMessage((msg) => {
+    setMessages((prev) => [...prev, msg])
     if (msg.name === name) return
     wetToast(`${msg.name}: ${msg.message}`, {
-      icon: "🔔",
+      icon: '🔔',
     })
   })
 
@@ -247,7 +226,7 @@ function Realtime() {
         </div>
         <form
           className="flex mt-4"
-          onSubmit={e => {
+          onSubmit={(e) => {
             e.preventDefault()
             handleSend()
           }}
@@ -255,30 +234,21 @@ function Realtime() {
           <input
             type="text"
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={(e) => setText(e.target.value)}
             className="flex-1 p-2 border border-gray-300 bg-zinc-900 rounded mr-2"
-            placeholder={name ? "Type a message..." : "Set your name..."}
+            placeholder={name ? 'Type a message...' : 'Set your name...'}
           />
           <button className="bg-blue-500 text-white p-2 rounded shadow-sm hover:shadow-lg hover:bg-blue-600 transition-all duration-300">
-            {name ? "Send" : "Set Name"}
+            {name ? 'Send' : 'Set Name'}
           </button>
         </form>
       </div>
 
       <div className="flex flex-col items-center justify-center w-1/2">
-        <button onClick={handleToggle}>{toggle ? "On" : "Off"}</button>
+        <button onClick={handleToggle}>{toggle ? 'On' : 'Off'}</button>
       </div>
     </div>
   )
 }
-
-interface DemoEvents {
-  message: { message: string; name: string }
-  toggle: { isOn: boolean }
-}
-
-type DemoEventCallback<T extends keyof DemoEvents> = (
-  payload: DemoEvents[T]
-) => void
 
 // * STORAGE
