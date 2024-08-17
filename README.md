@@ -24,6 +24,8 @@ To install BrightSide Developer, simply run:
 npm install brightside-developer
 ```
 
+See typedoc here: https://brightside-developer-docs.vercel.app
+
 ## Features
 
 ### Initialization
