@@ -25,7 +25,7 @@ export type IphonePostsReadOptions = Parameters<typeof Tables.iphone_posts.read>
 export type Todos = BrightTable<'todos'>
 export interface TodosCreateOptions {
   OmitOnCreate: 'id' | 'created_at'
-  OptionalOnCreate: 'done'
+  OptionalOnCreate: never
 }
 export type TodosReadOptions = Parameters<typeof Tables.todos.read>
 

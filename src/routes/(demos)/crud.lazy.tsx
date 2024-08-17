@@ -40,7 +40,7 @@ function CRUD() {
   const createTodo = useCallback(
     async () =>
       Tables.todos
-        .create({ todo: text })
+        .create({ todo: text, done: false })
         .then(() => {
           invalidate()
           setText('')
