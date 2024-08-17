@@ -1,1 +1,1 @@
-export type { Tables as BrightTable } from './database.types';
+export type { Tables as BrightTable } from './database.types.ts'

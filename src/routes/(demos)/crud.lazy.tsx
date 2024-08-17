@@ -2,7 +2,7 @@ import { createLazyFileRoute, Link } from '@tanstack/react-router'
 import useCreateQuery from '../../hooks/BrightBaseQuery/useCreateQuery'
 import { BrightQuery, wetToast } from 'brightside-developer'
 import { Suspense, useCallback, useState } from 'react'
-import Tables, { Todo, TodoReadOptions } from '../../api/Tables'
+import Tables, { Todos, TodosReadOptions } from '../../api/Tables'
 import { Loader2, Trash } from 'lucide-react'
 import useInvalidateQuery from '../../hooks/BrightBaseQuery/useInvalidateQuery'
 
@@ -20,7 +20,7 @@ export const Route = createLazyFileRoute('/(demos)/crud')({
   ),
 })
 
-const ReadOptions: TodoReadOptions = [
+const ReadOptions: TodosReadOptions = [
   {},
   {
     order: { by: 'created_at', ascending: false },
@@ -51,7 +51,7 @@ function CRUD() {
   )
 
   const updateTodo = useCallback(
-    async ({ id, done, todo: label }: Todo) =>
+    async ({ id, done, todo: label }: Todos) =>
       Tables.todos
         .update(id, { done })
         .then(() => {
@@ -63,7 +63,7 @@ function CRUD() {
   )
 
   const deleteTodo = useCallback(
-    async ({ id }: Todo) =>
+    async ({ id }: Todos) =>
       Tables.todos
         .delete(id)
         .then(() => {
