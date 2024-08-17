@@ -1,9 +1,8 @@
-import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase } from 'brightbase'
 import { Loader2, Trash } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import wetToast from './utils/wetToast'
-import useBrightSuspenseQuery from './hooks/useBrightSuspenseQuery'
-import useInvalidateBrightQuery from './hooks/useInvalidateBrightQuery'
+import useCreateQuery from './hooks/useCreateQuery'
+import useInvalidateQuery from './hooks/useInvalidateQuery'
+import { BrightBaseCRUD, BrightBaseRealtime, initBrightBase, useSuspenseQuery, wetToast } from 'brightside-developer'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -49,8 +48,8 @@ interface Todo {
 }
 
 interface CreateOptions {
-  notAllowedOnCreate: 'id' | 'created_at'
-  optionalOnCreate: 'done'
+  OmitOnCreate: 'id' | 'created_at'
+  OptionalOnCreate: 'done'
 }
 
 const todos_table = new BrightBaseCRUD<Todo, CreateOptions>('todos')
@@ -63,9 +62,11 @@ const ReadOptions: Parameters<typeof todos_table.read> = [
 ]
 
 function CRUD() {
-  const invalidate = useInvalidateBrightQuery(todos_table, ReadOptions)
+  const query = useCreateQuery(todos_table, ReadOptions)
 
-  const { data: todoList } = useBrightSuspenseQuery(todos_table, ReadOptions)
+  const invalidate = useInvalidateQuery(query)
+
+  const { data: todoList } = useSuspenseQuery(query)
 
   // ? React Hook Form ? //
   const [text, setText] = useState('')
@@ -74,20 +75,23 @@ function CRUD() {
     async () =>
       todos_table
         .create({ todo: text })
-        .then(() => wetToast('Todo added!', { icon: '🎉' }))
-        .then(() => setText(''))
-        // ? .then Optimistic and .then Invalidate with TanStack (would tanstack revert if after invalidating the optisim was wrong?) ? //
-        .then(() => invalidate())
+        .then(() => {
+          invalidate()
+          setText('')
+          wetToast('Todo added!', { icon: '🎉' })
+        })
         .catch((err) => wetToast(err.message, { icon: '❌' })),
     [invalidate, text]
   )
 
   const updateTodo = useCallback(
-    async ({ id, done, todo }: Todo) =>
+    async ({ id, done, todo: label }: Todo) =>
       todos_table
         .update(id, { done })
-        .then(() => wetToast(`${todo} ${done ? 'checked' : 'unchecked'}!`, { icon: '🎉' }))
-        .then(() => invalidate())
+        .then(() => {
+          invalidate()
+          wetToast(`${label} ${done ? 'checked' : 'unchecked'}!`, { icon: '🎉' })
+        })
         .catch((err) => wetToast(err.message, { icon: '❌' })),
     [invalidate]
   )
@@ -96,8 +100,10 @@ function CRUD() {
     async ({ id }: Todo) =>
       todos_table
         .delete(id)
-        .then(() => wetToast('Todo deleted!', { icon: '🎉' }))
-        .then(() => invalidate())
+        .then(() => {
+          invalidate()
+          wetToast('Todo deleted!', { icon: '🎉' })
+        })
         .catch((err) => wetToast(err.message, { icon: '❌' })),
     [invalidate]
   )
