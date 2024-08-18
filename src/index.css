@@ -9,3 +9,38 @@
 body {
   @apply bg-background text-text;
 }
+/* Global styles for WebKit browsers (e.g., Chrome, Safari) */
+::-webkit-scrollbar {
+  width: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--background);
+  border-radius: 9999px; /* Makes the track fully rounded */
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--background-two);
+  border-radius: 9999px; /* Makes the thumb fully rounded */
+}
+
+/* For Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--background-two) var(--background);
+}
+
+/* For Edge and Internet Explorer */
+::-ms-scrollbar {
+  width: 7px;
+}
+
+::-ms-scrollbar-track {
+  background: var(--background);
+  border-radius: 9999px;
+}
+
+::-ms-scrollbar-thumb {
+  background-color: var(--background-two);
+  border-radius: 9999px;
+}
